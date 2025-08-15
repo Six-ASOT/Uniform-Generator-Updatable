@@ -1,0 +1,480 @@
+import React, { useState, useRef } from 'react';
+import { Upload, Eye, EyeOff, Edit3, Trash2, Move, RefreshCw, Plus, Save, Download } from 'lucide-react';
+
+const UniformBuilder = () => {
+  // Base uniform templates
+  const [uniforms, setUniforms] = useState([
+    {
+      id: 'army-uniform',
+      name: 'Army Uniform',
+      baseImage: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400&h=600&fit=crop',
+      enabled: true
+    }
+  ]);
+
+  // Component types and their items
+  const [components, setComponents] = useState({
+    ribbons: [
+      { id: 'r1', name: 'Service Medal', src: 'https://via.placeholder.com/60x20/FF6B6B/white?text=SVC', enabled: true, order: 0 },
+      { id: 'r2', name: 'Combat Medal', src: 'https://via.placeholder.com/60x20/4ECDC4/white?text=CMB', enabled: true, order: 1 }
+    ],
+    qualifications: [
+      { id: 'q1', name: 'Marksman Badge', src: 'https://via.placeholder.com/40x40/45B7D1/white?text=M', enabled: true, order: 0 },
+      { id: 'q2', name: 'Paratrooper Wings', src: 'https://via.placeholder.com/50x25/96CEB4/white?text=AIR', enabled: true, order: 1 }
+    ],
+    rank: [
+      { id: 'rank1', name: 'Captain Bars', src: 'https://via.placeholder.com/30x15/FECA57/white?text=CPT', enabled: true, order: 0 }
+    ],
+    corps: [
+      { id: 'c1', name: 'Infantry Badge', src: 'https://via.placeholder.com/35x35/FF9FF3/white?text=INF', enabled: true, order: 0 }
+    ]
+  });
+
+  const [selectedUniform, setSelectedUniform] = useState('dress-uniform');
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const [newItemUrl, setNewItemUrl] = useState('');
+  const [activeTab, setActiveTab] = useState('ribbons');
+  const fileInputRef = useRef(null);
+
+  const componentTypes = [
+    { key: 'ribbons', label: 'Ribbons', color: 'bg-red-100 text-red-800' },
+    { key: 'qualifications', label: 'Qualifications', color: 'bg-blue-100 text-blue-800' },
+    { key: 'rank', label: 'Rank', color: 'bg-yellow-100 text-yellow-800' },
+    { key: 'corps', label: 'Corps', color: 'bg-green-100 text-green-800' }
+  ];
+
+  // Generate unique ID
+  const generateId = () => Math.random().toString(36).substr(2, 9);
+
+  // Add new uniform template
+  const addUniform = (src, name) => {
+    const newUniform = {
+      id: generateId(),
+      name: name || `Uniform ${uniforms.length + 1}`,
+      baseImage: src,
+      enabled: true
+    };
+    setUniforms(prev => [...prev, newUniform]);
+  };
+
+  // Update uniform base image (simulates database update)
+  const updateUniformImage = (id, newSrc) => {
+    setUniforms(prev => prev.map(uniform => 
+      uniform.id === id ? { ...uniform, baseImage: newSrc } : uniform
+    ));
+  };
+
+  // Handle file upload for uniforms
+  const handleUniformUpload = (event) => {
+    const files = Array.from(event.target.files);
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          addUniform(e.target.result, file.name.replace(/\.[^/.]+$/, ""));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+    event.target.value = '';
+  };
+
+  // Add new component item
+  const addComponentItem = (type, src, name) => {
+    const newItem = {
+      id: generateId(),
+      name: name || `New ${type}`,
+      src,
+      enabled: true,
+      order: components[type].length
+    };
+    setComponents(prev => ({
+      ...prev,
+      [type]: [...prev[type], newItem]
+    }));
+  };
+
+  // Update component item (simulates database update - affects all uniforms)
+  const updateComponentItem = (type, id, newSrc) => {
+    setComponents(prev => ({
+      ...prev,
+      [type]: prev[type].map(item => 
+        item.id === id ? { ...item, src: newSrc } : item
+      )
+    }));
+    setEditingItem(null);
+  };
+
+  // Toggle component enabled state
+  const toggleComponentEnabled = (type, id) => {
+    setComponents(prev => ({
+      ...prev,
+      [type]: prev[type].map(item => 
+        item.id === id ? { ...item, enabled: !item.enabled } : item
+      )
+    }));
+  };
+
+  // Delete component item
+  const deleteComponentItem = (type, id) => {
+    setComponents(prev => ({
+      ...prev,
+      [type]: prev[type].filter(item => item.id !== id)
+    }));
+  };
+
+  // Shuffle components of a type
+  const shuffleComponents = (type) => {
+    setComponents(prev => ({
+      ...prev,
+      [type]: prev[type].map((item, index) => ({
+        ...item,
+        order: Math.floor(Math.random() * 1000)
+      })).sort((a, b) => a.order - b.order).map((item, index) => ({
+        ...item,
+        order: index
+      }))
+    }));
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e, type, index) => {
+    setDraggedItem({ type, index });
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, type, dropIndex) => {
+    e.preventDefault();
+    if (!draggedItem || draggedItem.type !== type) return;
+
+    const items = [...components[type]];
+    const [draggedElement] = items.splice(draggedItem.index, 1);
+    items.splice(dropIndex, 0, draggedElement);
+    
+    // Update order values
+    const reorderedItems = items.map((item, index) => ({ ...item, order: index }));
+    
+    setComponents(prev => ({
+      ...prev,
+      [type]: reorderedItems
+    }));
+    setDraggedItem(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+  };
+
+  // Get enabled components sorted by order
+  const getEnabledComponents = (type) => {
+    return components[type]
+      .filter(item => item.enabled)
+      .sort((a, b) => a.order - b.order);
+  };
+
+  const getCurrentUniform = () => uniforms.find(u => u.id === selectedUniform);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">Military Uniform Builder</h1>
+          <p className="text-gray-600">Design and customize military uniforms with ribbons, qualifications, rank, and corps badges</p>
+        </div>
+
+        {/* Uniform Template Selection */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex flex-wrap gap-4 items-center mb-4">
+            <h3 className="text-lg font-semibold">Uniform Templates</h3>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <Upload size={20} />
+              Add Template
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={handleUniformUpload}
+              className="hidden"
+            />
+          </div>
+          
+          <div className="flex gap-4 overflow-x-auto">
+            {uniforms.map(uniform => (
+              <div
+                key={uniform.id}
+                onClick={() => setSelectedUniform(uniform.id)}
+                className={`flex-shrink-0 cursor-pointer p-3 rounded-lg border-2 transition-colors ${
+                  selectedUniform === uniform.id 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <img
+                  src={uniform.baseImage}
+                  alt={uniform.name}
+                  className="w-20 h-28 object-cover rounded mb-2"
+                />
+                <p className="text-sm font-medium text-center">{uniform.name}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-4 gap-6">
+          {/* Component Management Panel */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <h3 className="text-lg font-semibold mb-4 text-gray-800">Components</h3>
+              
+              {/* Component Type Tabs */}
+              <div className="grid grid-cols-2 gap-1 mb-4">
+                {componentTypes.map(type => (
+                  <button
+                    key={type.key}
+                    onClick={() => setActiveTab(type.key)}
+                    className={`text-xs px-2 py-1 rounded text-center transition-colors ${
+                      activeTab === type.key 
+                        ? type.color 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Add New Component */}
+              <div className="mb-4 p-2 bg-gray-50 rounded">
+                <input
+                  type="url"
+                  value={newItemUrl}
+                  onChange={(e) => setNewItemUrl(e.target.value)}
+                  placeholder={`Add ${activeTab} URL...`}
+                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded mb-2"
+                />
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      if (newItemUrl.trim()) {
+                        addComponentItem(activeTab, newItemUrl, `New ${activeTab}`);
+                        setNewItemUrl('');
+                      }
+                    }}
+                    className="flex-1 bg-green-500 text-white px-2 py-1 text-sm rounded hover:bg-green-600"
+                  >
+                    <Plus size={14} className="inline mr-1" />
+                    Add
+                  </button>
+                  <button
+                    onClick={() => shuffleComponents(activeTab)}
+                    className="bg-purple-500 text-white px-2 py-1 text-sm rounded hover:bg-purple-600"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Component List */}
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {components[activeTab].map((item, index) => (
+                  <div
+                    key={item.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, activeTab, index)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, activeTab, index)}
+                    onDragEnd={handleDragEnd}
+                    className={`flex items-center gap-2 p-2 border rounded cursor-move transition-opacity ${
+                      draggedItem?.type === activeTab && draggedItem?.index === index ? 'opacity-50' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.enabled}
+                      onChange={() => toggleComponentEnabled(activeTab, item.id)}
+                      className="w-3 h-3"
+                    />
+                    {item.enabled ? <Eye size={14} className="text-green-500" /> : <EyeOff size={14} className="text-gray-400" />}
+                    <img src={item.src} alt={item.name} className="w-6 h-6 object-cover rounded" />
+                    <span className="text-xs truncate flex-1">{item.name}</span>
+                    <button
+                      onClick={() => setEditingItem({ type: activeTab, id: item.id, currentSrc: item.src })}
+                      className="p-1 text-blue-500 hover:bg-blue-50 rounded"
+                    >
+                      <Edit3 size={12} />
+                    </button>
+                    <button
+                      onClick={() => deleteComponentItem(activeTab, item.id)}
+                      className="p-1 text-red-500 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Uniform Preview */}
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {getCurrentUniform()?.name} Preview
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingItem({ type: 'uniform', id: selectedUniform, currentSrc: getCurrentUniform()?.baseImage })}
+                    className="flex items-center gap-1 bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                  >
+                    <Edit3 size={14} />
+                    Edit Base
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex justify-center">
+                <div className="relative inline-block">
+                  {/* Base Uniform */}
+                  <img
+                    src={getCurrentUniform()?.baseImage}
+                    alt="Base Uniform"
+                    className="w-80 h-96 object-cover rounded-lg shadow-lg"
+                  />
+                  
+                  {/* Rank (top left) */}
+                  <div className="absolute top-6 left-6 flex flex-col gap-1">
+                    {getEnabledComponents('rank').map((item, index) => (
+                      <img
+                        key={item.id}
+                        src={item.src}
+                        alt={item.name}
+                        className="shadow-sm"
+                        style={{ maxWidth: '40px', maxHeight: '20px' }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Corps Badge (top right) */}
+                  <div className="absolute top-6 right-6 flex flex-col gap-1">
+                    {getEnabledComponents('corps').map((item, index) => (
+                      <img
+                        key={item.id}
+                        src={item.src}
+                        alt={item.name}
+                        className="shadow-sm"
+                        style={{ maxWidth: '45px', maxHeight: '45px' }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Ribbons (upper center-left) */}
+                  <div className="absolute top-20 left-8 flex flex-col gap-0.5">
+                    {getEnabledComponents('ribbons').map((item, index) => (
+                      <img
+                        key={item.id}
+                        src={item.src}
+                        alt={item.name}
+                        className="shadow-sm"
+                        style={{ maxWidth: '70px', maxHeight: '25px' }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Qualifications (center-left) */}
+                  <div className="absolute top-40 left-6 flex flex-col gap-1">
+                    {getEnabledComponents('qualifications').map((item, index) => (
+                      <img
+                        key={item.id}
+                        src={item.src}
+                        alt={item.name}
+                        className="shadow-sm"
+                        style={{ maxWidth: '60px', maxHeight: '35px' }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Statistics */}
+              <div className="mt-6 grid grid-cols-4 gap-4 text-center">
+                {componentTypes.map(type => (
+                  <div key={type.key} className={`p-3 rounded-lg ${type.color}`}>
+                    <div className="font-semibold">{getEnabledComponents(type.key).length}</div>
+                    <div className="text-sm">{type.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Edit Modal */}
+        {editingItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-lg font-semibold mb-4">
+                Update {editingItem.type === 'uniform' ? 'Base Uniform' : editingItem.type}
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                This will update across all uniforms using this template
+              </p>
+              <input
+                type="url"
+                defaultValue={editingItem.currentSrc}
+                placeholder="Enter new image URL..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    const newUrl = e.target.value;
+                    if (editingItem.type === 'uniform') {
+                      updateUniformImage(editingItem.id, newUrl);
+                    } else {
+                      updateComponentItem(editingItem.type, editingItem.id, newUrl);
+                    }
+                  }
+                }}
+                id="edit-item-input"
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setEditingItem(null)}
+                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const newUrl = document.getElementById('edit-item-input').value;
+                    if (editingItem.type === 'uniform') {
+                      updateUniformImage(editingItem.id, newUrl);
+                    } else {
+                      updateComponentItem(editingItem.type, editingItem.id, newUrl);
+                    }
+                    setEditingItem(null);
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Update
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default UniformBuilder;
